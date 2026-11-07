@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {Engine,output} from '../src/engine.js';
+import {Engine,output,desktopEnvironment} from '../src/engine.js';
 const node=(role,name,value,ref_id)=>({role,name,value,ref_id});
 const snapshot=(children,extras={})=>output({ok:true,data:{complete:true,window:{id:'window-1',pid:42,process_instance:'process-1'},tree:{role:'window',children},...extras}});
 function fixture(before,after,action=output({ok:true,data:{}})){
@@ -24,4 +24,8 @@ test('vision observations return native MCP image content',async()=>{
 test('raw screenshots become image blocks instead of base64 text sent to the model',async()=>{
  const e=new Engine({callTool:async()=>output({ok:true,data:{data:'aW1hZ2U=',width:10,height:10,format:'png'}})});e.tools=[{name:'desktop_screenshot'}];
  const r=await e.call('desktop_screenshot',{});assert.equal(r.content[1].type,'image');assert.equal(JSON.parse(r.content[0].text).data.data,undefined);
+});
+
+test('preserves desktop session environment without forwarding provider credentials',()=>{
+ assert.deepEqual(desktopEnvironment({DISPLAY:':1',DBUS_SESSION_BUS_ADDRESS:'unix:path=/tmp/bus',AGENT_DESKTOP_HOME:'/tmp/state',OPENAI_API_KEY:'secret',GITHUB_TOKEN:'secret'}),{DISPLAY:':1',DBUS_SESSION_BUS_ADDRESS:'unix:path=/tmp/bus',AGENT_DESKTOP_HOME:'/tmp/state'});
 });

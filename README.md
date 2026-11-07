@@ -36,7 +36,7 @@ Antes de operar, solicita `desktop_skills_get` con `name: "desktop"` y luego con
 
 ## Herramientas
 
-Con agent-desktop 1.2.0 se publican 69 herramientas: 67 del motor original y dos extensiones.
+Con agent-desktop 1.2.0 se publican 72 herramientas: 67 del motor original y cinco extensiones. El modo `PILOT_TOOLSET=chat` reduce el catálogo a 17.
 
 ### `pilot_observe`
 
@@ -67,13 +67,22 @@ El servidor rechaza objetivos ambiguos y observaciones incompletas. No reintenta
 
 Las herramientas originales conservan su semántica; la verificación adicional solo se aplica a `pilot_act`. Las capturas de `desktop_screenshot` se devuelven como imágenes MCP cuando contienen datos en memoria.
 
+## Interacción con chats y clientes
+
+La versión 0.2 añade `pilot_chat_read` para leer texto y localizar compositores, `pilot_chat_write` para preparar texto multilínea y enviarlo explícitamente, y `pilot_chat_wait` para esperar cambios de texto estables. Conserva borradores y evita repetir peticiones con el mismo `request_id` dentro del proceso.
+
+Consulta [OpenCode, Claude Code y ChatGPT](docs/clients.md) para generar configuraciones, conectar los clientes y conocer los límites de accesibilidad de las terminales. Estas mejoras no equivalen a soporte probado de extremo a extremo para las tres aplicaciones.
+
 ## Configuración opcional
 
 Variables de entorno del proceso MCP:
 
+- `PILOT_TOOLSET=chat`: selecciona el catálogo reducido para chats; `full` expone todas las herramientas.
 - `AGENT_DESKTOP_BIN`: ruta absoluta a una compilación propia de agent-desktop, para trabajar sobre un fork del motor.
 - `PILOT_HEADED=1`: habilita explícitamente entrada física de ratón y teclado. Por defecto está deshabilitada. Las restricciones de la plataforma siguen aplicando.
 - `AGENT_DESKTOP_HOME`: cambia el directorio de estado del motor original.
+
+El servidor transmite al motor una lista explícita de variables de sesión gráfica y estado, sin copiar credenciales de proveedores.
 
 Las llamadas se serializan dentro de cada proceso MCP. Procesos distintos no comparten el bloqueo: conecta un solo controlador a cada escritorio. La herramienta opera con los permisos de tu usuario; no crea una máquina virtual ni un entorno aislado. El contenido de las ventanas y las capturas se entrega a tu cliente MCP.
 

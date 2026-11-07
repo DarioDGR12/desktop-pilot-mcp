@@ -1,3 +1,8 @@
+import { desktopEnvironment } from './environment.js';
+export { desktopEnvironment } from './environment.js';
+import { selectTools } from './client-config.js';
+import { envelope, output, matches } from './observation.js';
+import { Chat, chatSchemas, chatTools } from './chat.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { createRequire } from 'node:module';
@@ -19,24 +24,18 @@ const schemas = {
   pilot_act:z.object({...scope,target:selector,action:z.enum(['click','set_value','type','check','uncheck','expand','collapse']),text:z.string().optional(),expect:selector}).strict(),
 };
 export const pilotTools = Object.entries(schemas).map(([name,schema])=>({name,inputSchema:z.toJSONSchema(schema),description:name==='pilot_observe'?'Observe a desktop window using accessibility and optionally an image.':'Resolve one unique target in a fresh complete snapshot, act once, and check a unique postcondition in the same window. Never retries a mutation.'}));
-export function envelope(result) {
-  if (result.structuredContent?.ok !== undefined) return result.structuredContent;
-  for (const c of result.content ?? []) if (c.type==='text') {try {const x=JSON.parse(c.text);if(typeof x.ok==='boolean')return x;}catch{}}
-  throw new Error('Upstream response has no agent-desktop envelope');
-}
-export const output = (data,isError=false)=>({content:[{type:'text',text:JSON.stringify(data)}],isError});
-export function nodes(tree) {return tree ? [tree,...(tree.children??[]).flatMap(nodes)] : [];}
-export function matches(tree,s) {return nodes(tree).filter(n=>n.role===s.role && n.name===s.name && (s.value===undefined || n.value===s.value));}
+export { envelope, output, nodes, matches } from './observation.js';
 export class Engine {
-  constructor(client) {this.client=client;this.tools=[];this.tail=Promise.resolve();this.events=[];this.paused=false;}
+  constructor(client) {this.client=client;this.tools=[];this.tail=Promise.resolve();this.events=[];this.paused=false;this.chat=new Chat((name,args)=>this.raw(name,args));}
   async connect() {
     if(!this.client){
-      this.client=new Client({name:'desktop-pilot',version:'0.1.0'});
-      await this.client.connect(new StdioClientTransport({command:desktopBinary(),args:['mcp',...(process.env.PILOT_HEADED==='1'?['--headed']:[])]}));
+      this.client=new Client({name:'desktop-pilot',version:'0.2.0'});
+      await this.client.connect(new StdioClientTransport({command:desktopBinary(),env:desktopEnvironment(),args:['mcp',...(process.env.PILOT_HEADED==='1'?['--headed']:[])]}));
     }
     let cursor;
     do {const page=await this.client.listTools({cursor});this.tools.push(...page.tools);cursor=page.nextCursor;}while(cursor);
-    this.tools.push(...pilotTools);
+    this.tools.push(...pilotTools,...chatTools);
+    this.tools=selectTools(this.tools,process.env.PILOT_TOOLSET);
     this.guides=[];
     for(const name of ['desktop','platform']) this.guides.push(envelope(await this.raw('desktop_skills_get',{name})).data?.content??'');
   }
@@ -51,7 +50,7 @@ export class Engine {
       if(!this.tools.some(t=>t.name===name))throw new Error('Herramienta desconocida');
       const start=Date.now();
       try {
-        const result=schemas[name]?await this.enhanced(name,schemas[name].parse(args)):await this.raw(name,args);
+        const result=chatSchemas[name]?await this.chat.call(name,chatSchemas[name].parse(args)):schemas[name]?await this.enhanced(name,schemas[name].parse(args)):await this.raw(name,args);
         if(name==='desktop_screenshot'){
           const shot=envelope(result);
           if(shot.ok&&shot.data.data){

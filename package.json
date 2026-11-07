@@ -1,22 +1,42 @@
 {
   "name": "desktop-pilot-mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Standalone computer-use MCP server with accessibility, screenshots and verified actions, powered by agent-desktop",
   "type": "module",
   "license": "Apache-2.0",
   "author": "DarioDGR12",
-  "bin": {"desktop-pilot-mcp": "src/mcp.js"},
-  "files": ["src/", "README.md", "LICENSE"],
+  "bin": {
+    "desktop-pilot-mcp": "src/mcp.js"
+  },
+  "files": [
+    "src/",
+    "README.md",
+    "LICENSE",
+    "docs/",
+    "scripts/"
+  ],
   "scripts": {
     "start": "node src/mcp.js",
     "test": "node --test",
     "test:integration": "node scripts/smoke.mjs",
     "setup:desktop": "node scripts/setup-desktop.cjs"
   },
-  "engines": {"node": ">=22.9.0"},
-  "keywords": ["mcp", "computer-use", "accessibility", "agent-desktop"],
-  "repository": {"type": "git", "url": "git+https://github.com/DarioDGR12/desktop-pilot-mcp.git"},
-  "bugs": {"url": "https://github.com/DarioDGR12/desktop-pilot-mcp/issues"},
+  "engines": {
+    "node": ">=22.9.0"
+  },
+  "keywords": [
+    "mcp",
+    "computer-use",
+    "accessibility",
+    "agent-desktop"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DarioDGR12/desktop-pilot-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/DarioDGR12/desktop-pilot-mcp/issues"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.2",
     "agent-desktop": "1.2.0",

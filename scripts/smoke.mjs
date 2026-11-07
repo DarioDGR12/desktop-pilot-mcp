@@ -4,10 +4,16 @@ import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 const client = new Client({ name: 'standalone-smoke', version: '0.1.0' });
 try {
-  await client.connect(new StdioClientTransport({ command: process.execPath, args: [fileURLToPath(new URL('../src/mcp.js', import.meta.url))] }));
+  await client.connect(new StdioClientTransport({ command: process.execPath, env: { PILOT_TOOLSET: process.env.PILOT_TOOLSET || 'full' }, args: [fileURLToPath(new URL('../src/mcp.js', import.meta.url))] }));
   const { tools } = await client.listTools();
   assert(tools.some(t => t.name === 'pilot_act'));
   assert(tools.some(t => t.name === 'pilot_observe'));
+  assert(tools.some(t => t.name === 'pilot_chat_write'));
+  if (process.env.PILOT_TOOLSET === 'chat') {
+    assert.equal(tools.length, 17);
+    const denied = await client.callTool({ name: 'desktop_close_app', arguments: { app: 'Never executed' } });
+    assert.equal(denied.isError, true);
+  }
   const result = await client.callTool({ name: 'desktop_status', arguments: {} });
   const status = JSON.parse(result.content[0].text);
   assert.equal(status.ok, true);
