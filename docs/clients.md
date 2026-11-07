@@ -60,7 +60,7 @@ Estas instrucciones no crean credenciales, túneles ni plugins en tu cuenta. La 
 
 ## Conjunto reducido de herramientas
 
-`PILOT_TOOLSET=chat` expone 17 herramientas: las cinco `pilot_*` más doce herramientas de observación, esperas, ayuda y foco/teclado. `full` es el valor predeterminado y expone 72 con agent-desktop 1.2.0.
+`PILOT_TOOLSET=chat` expone 18 herramientas: las seis `pilot_*` más doce herramientas de observación, esperas, ayuda y foco/teclado. `full` es el valor predeterminado y expone 73 con agent-desktop 1.2.0.
 
 Una herramienta excluida también se rechaza si se llama directamente. Este filtro reduce el contexto del modelo; no constituye aislamiento del escritorio. Las operaciones internas de `pilot_chat_write` siguen disponibles. No actives varios controladores a la vez sobre la misma ventana.
 
@@ -87,7 +87,7 @@ Ejemplo de borrador (los nombres son ilustrativos, no selectores fijos de ChatGP
 
 Para enviar añade `"send": {"role": "button", "name": "Nombre observado del botón"}`. Si el campo contiene otro borrador, falla con `EXISTING_DRAFT`; solo reemplaza con `replace: true`. Un campo cuyo valor no puede leerse se rechaza porque no permite comprobar la escritura.
 
-`request_id` conserva el resultado de hasta 128 peticiones por proceso, incluidas las de entrega incierta. Reutiliza el mismo ID y argumentos después de un fallo de transporte. No hay deduplicación entre reinicios o procesos. Si quieres pasar de preparar un borrador a enviarlo, utiliza un nuevo ID, inspeccionando antes que el borrador sea el esperado. Cuando ya coincide, la herramienta evita reescribirlo.
+`request_id` conserva el resultado de hasta 128 peticiones por proceso, incluidas las de entrega incierta. Reutiliza el mismo ID y argumentos después de un fallo de transporte. No hay deduplicación entre reinicios o procesos. Si quieres pasar de preparar un borrador a enviarlo, utiliza un nuevo ID, inspeccionando antes que el borrador sea el esperado. Cuando ya coincide, la herramienta evita reescribirlo. Puedes consultar `pilot_request_status` con el ID para obtener el estado cacheado sin repetir la escritura, incluso mientras el motor tiene una llamada pendiente.
 
 `send_dispatched` indica que el clic terminó según el motor; **no** prueba que el servicio haya aceptado el mensaje. `text_stable` solo indica que el texto observado no cambió durante el intervalo solicitado; una generación puede detenerse temporalmente y continuar. La espera exige cambio respecto a la lectura inicial por defecto. `contains` comprueba una cadena literal y no debe usarse para atribuir texto a un autor.
 
@@ -97,3 +97,9 @@ Para enviar añade `"send": {"role": "button", "name": "Nombre observado del bot
 - En ventanas que expongan accesibilidad, las herramientas usan capacidades observadas, sin reglas por nombre de aplicación.
 - ChatGPT en navegador depende de lo que el navegador exponga al árbol de accesibilidad del sistema. Este servidor no añade un backend DOM. Si falta esa información, usa un controlador de navegador específico.
 - Las pruebas del flujo de chat usan interfaces simuladas; la integración real comprueba el motor y MCP en Linux. OpenCode, Claude Code y `tunnel-client` no estaban instalados en el entorno de desarrollo, y no se ha verificado una conversación real en esos clientes ni una conexión desde ChatGPT.
+
+## Diagnosticar desconexiones y cancelaciones
+
+Ejecuta `node src/mcp.js --doctor` desde la sesión gráfica antes de conectar el cliente. Si falla la instalación, el informe indica preparar el motor con `npm run setup:desktop` o revisar `AGENT_DESKTOP_BIN`. No imprime claves ni direcciones de bus.
+
+Cancelar una petición en un cliente que envíe la notificación MCP impide los pasos siguientes, pero no deshace lo ya ejecutado. La petición al motor en curso puede tardar hasta su timeout en liberar la cola. No pulses enviar de nuevo por no haber recibido respuesta; consulta el ID anterior y observa el estado. Un error de transporte pausa las acciones hasta reiniciar, mientras que los errores estructurados normales del motor se devuelven sin esa pausa.

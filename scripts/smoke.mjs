@@ -9,8 +9,10 @@ try {
   assert(tools.some(t => t.name === 'pilot_act'));
   assert(tools.some(t => t.name === 'pilot_observe'));
   assert(tools.some(t => t.name === 'pilot_chat_write'));
+  const cached = await client.callTool({name: 'pilot_request_status', arguments: {request_id: 'smoke-unknown'}});
+  assert.equal(JSON.parse(cached.content[0].text).state, 'unknown');
   if (process.env.PILOT_TOOLSET === 'chat') {
-    assert.equal(tools.length, 17);
+    assert.equal(tools.length, 18);
     const denied = await client.callTool({ name: 'desktop_close_app', arguments: { app: 'Never executed' } });
     assert.equal(denied.isError, true);
   }

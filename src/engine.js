@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { desktopEnvironment } from './environment.js';
 export { desktopEnvironment } from './environment.js';
 import { selectTools } from './client-config.js';
@@ -26,10 +27,10 @@ const schemas = {
 export const pilotTools = Object.entries(schemas).map(([name,schema])=>({name,inputSchema:z.toJSONSchema(schema),description:name==='pilot_observe'?'Observe a desktop window using accessibility and optionally an image.':'Resolve one unique target in a fresh complete snapshot, act once, and check a unique postcondition in the same window. Never retries a mutation.'}));
 export { envelope, output, nodes, matches } from './observation.js';
 export class Engine {
-  constructor(client) {this.client=client;this.tools=[];this.tail=Promise.resolve();this.events=[];this.paused=false;this.chat=new Chat((name,args)=>this.raw(name,args));}
+  constructor(client) {this.context=new AsyncLocalStorage();this.shutdown=new AbortController();this.pending=0;this.client=client;this.tools=[];this.tail=Promise.resolve();this.events=[];this.paused=false;this.chat=new Chat((name,args)=>this.raw(name,args));}
   async connect() {
     if(!this.client){
-      this.client=new Client({name:'desktop-pilot',version:'0.2.0'});
+      this.client=new Client({name:'desktop-pilot',version:'0.3.0'});
       await this.client.connect(new StdioClientTransport({command:desktopBinary(),env:desktopEnvironment(),args:['mcp',...(process.env.PILOT_HEADED==='1'?['--headed']:[])]}));
     }
     let cursor;
@@ -41,16 +42,29 @@ export class Engine {
   }
   record(event){this.events.push({time:new Date().toISOString(),...event});if(this.events.length>100)this.events.shift();}
   async raw(name,args){
-    const result=await this.client.callTool({name,arguments:args},undefined,{timeout:45000});
+    const signal=this.context.getStore()?.signal;
+    signal?.throwIfAborted();
+    let result;
+    try { result=await this.client.callTool({name,arguments:args},undefined,{timeout:45000}); }
+    catch(error) { this.paused=true; throw error; }
+    signal?.throwIfAborted();
     return result;
   }
-  call(name,args={}) {
-    const work=this.tail.then(async()=>{
+  call(name,args={},options={}) {
+    const signal=options.signal?AbortSignal.any([options.signal,this.shutdown.signal]):this.shutdown.signal;
+    if(name==='pilot_request_status') {
+      signal.throwIfAborted();
+      return this.chat.call(name,chatSchemas[name].parse(args),signal);
+    }
+    if(this.pending>=32)return Promise.reject(new Error('QUEUE_FULL: wait for existing calls to finish'));
+    this.pending++;
+    const work=this.tail.then(()=>this.context.run({signal},async()=>{
+      signal.throwIfAborted();
       if(this.paused)throw new Error('Motor pausado.');
       if(!this.tools.some(t=>t.name===name))throw new Error('Herramienta desconocida');
       const start=Date.now();
       try {
-        const result=chatSchemas[name]?await this.chat.call(name,chatSchemas[name].parse(args)):schemas[name]?await this.enhanced(name,schemas[name].parse(args)):await this.raw(name,args);
+        const result=chatSchemas[name]?await this.chat.call(name,chatSchemas[name].parse(args),signal):schemas[name]?await this.enhanced(name,schemas[name].parse(args)):await this.raw(name,args);
         if(name==='desktop_screenshot'){
           const shot=envelope(result);
           if(shot.ok&&shot.data.data){
@@ -61,7 +75,7 @@ export class Engine {
         let ok=!result.isError;try{ok=ok&&envelope(result).ok;}catch{}
         this.record({tool:name,ok,ms:Date.now()-start});return result;
       }catch(e){this.record({tool:name,ok:false,ms:Date.now()-start,error:e.message});throw e;}
-    });
+    })).finally(()=>{this.pending--;});
     this.tail=work.catch(()=>{});return work;
   }
   async enhanced(name,a){
@@ -91,5 +105,5 @@ export class Engine {
     const verified=!!(sameOwner&&after.data.complete&&matches(after.data.tree,a.expect).length===1);
     return output({ok:delivered.ok&&verified,action:delivered,verification:{verified,expected:a.expect},observation:after},!delivered.ok||!verified);
   }
-  async close(){await this.tail;await this.client.close();}
+  async close(){this.paused=true;this.shutdown.abort();await this.tail;await this.client?.close();}
 }

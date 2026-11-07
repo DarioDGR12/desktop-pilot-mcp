@@ -1,8 +1,7 @@
 #!/usr/bin/env node
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { createServer } from './server.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import { Engine, output } from './engine.js';
+import { Engine } from './engine.js';
 import { clientConfig } from './client-config.js';
 
 if (process.argv.includes('--print-config')) {
@@ -13,19 +12,16 @@ if (process.argv.includes('--print-config')) {
   } catch (error) { console.error(error.message); process.exit(1); }
 }
 
+if (process.argv[2] === '--doctor' && process.argv.length === 3) {
+  const { doctor } = await import('./doctor.js');
+  const report = await doctor();
+  console.log(JSON.stringify(report, null, 2));
+  process.exit(report.ok ? 0 : 1);
+}
+if (process.argv.length > 2) { console.error('Unknown arguments. Use --doctor or --print-config CLIENT.'); process.exit(1); }
+
 const engine = new Engine();
-const server = new Server(
-  { name: 'desktop-pilot-mcp', version: '0.2.0' },
-  {
-    capabilities: { tools: {} },
-    instructions: 'Read desktop_skills_get with name desktop and platform before operating. Prefer pilot_observe and pilot_act. For chats use pilot_chat_read, pilot_chat_write and pilot_chat_wait. Never assume terminal surfaces expose a composer. Writing does not send unless a send button is explicitly supplied. Reuse request_id after uncertain delivery; never resend with a new id without inspecting state. Stable text is not proof that generation finished. Commands are serialized within this server. A failed postcondition does not prove the action was not delivered. Retry mutations only when the upstream disposition.retry is safe. Physical input requires explicit operator enablement via PILOT_HEADED=1.'
-  }
-);
-server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: engine.tools }));
-server.setRequestHandler(CallToolRequestSchema, async ({ params }) => {
-  try { return await engine.call(params.name, params.arguments ?? {}); }
-  catch (error) { return output({ ok: false, error: error.message }, true); }
-});
+const server = createServer(engine);
 let closing = false;
 async function close() {
   if (closing) return;
